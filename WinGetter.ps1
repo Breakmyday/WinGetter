@@ -1,9 +1,10 @@
 function WinGetter {
     [CmdletBinding()]
     param(
-        [Parameter()]
+        [Parameter(Mandatory = $true)]
         [string]$SearchString
     )
+    
     class Software {
         [string]$Name
         [string]$Id
@@ -11,64 +12,36 @@ function WinGetter {
         [string]$Match
         [string]$Source
     }
-            
+    
     $SearchResults = winget.exe search $SearchString
-            
-    $lines = $SearchResults.Split([Environment]::NewLine)
-        
-        
-    # Find the line that starts with Name, it contains the header
-    $fl = 0
-    while (-not $lines[$fl].StartsWith("Name")) {
-        $fl++
-    }
-        
-    $regex = '[^\u0000-\u007F]+'
-    $list = @()
-    # Iterate over the original list and add lines that do not contain non-English characters to the new list
-    foreach ($line in $lines) {
-        if ($line -notmatch $regex) {
-            $list += $line
-        }
-    }
-        
-        
-    # Line $i has the header, we can find char where we find ID and Version
-    $idStart = $list[$fl].IndexOf("Id")
-    $versionStart = $list[$fl].IndexOf("Version")
-    $matchStart = $list[$fl].IndexOf("Match")
-    $sourceStart = $list[$fl].IndexOf("Source")
-            
-    # Now cycle in real package and split accordingly
-    $wingetList = @()
-        
-    For ($i = $fl + 1; $i -le $list.Length; $i++) {
-        $line = $list[$i]
-        
-        $name = $id = $version = $match = $source = $null
-        if ($line.Length -gt 1 -and -not $line.StartsWith('-')) {
-                
-        
-            $name = $line.Substring(0, $idStart).TrimEnd()
-            $id = $line.Substring($idStart, $versionStart - $idStart).TrimEnd()
-            if ($matchStart -gt 1) {
-                $version = $line.Substring($versionStart, $matchStart - $versionStart).TrimEnd()
-                $match = $line.Substring($matchStart, $sourceStart - $matchStart).TrimEnd()
+    $lines         = $SearchResults.Split([Environment]::NewLine)
+
+    $headerLine = $lines | Where-Object { $_.StartsWith("Name") }
+    $regex      = '[^\u0000-\u007F]+'
+    $list       = $lines | Where-Object { $_ -notmatch $regex }
+    
+    $idStart      = $headerLine.IndexOf("Id")
+    $versionStart = $headerLine.IndexOf("Version")
+    $matchStart   = $headerLine.IndexOf("Match")
+    $sourceStart  = $headerLine.IndexOf("Source")
+
+    $wingetList = $list | ForEach-Object {
+        if ($_.Length -gt 1 -and -not $_.StartsWith('-')) {
+            if ($idStart -lt $_.Length -and $versionStart -lt $_.Length -and $matchStart -lt $_.Length -and $sourceStart -lt $_.Length) {
+                $name    = $_.Substring(0, $idStart).Trim()
+                $id      = $_.Substring($idStart, $versionStart - $idStart).Trim()
+                $version = $_.Substring($versionStart, $matchStart - $versionStart).Trim()
+                $match   = $_.Substring($matchStart, $sourceStart - $matchStart).Trim()
+                $source  = $_.Substring($sourceStart).Trim()
+    
+                $software         = [Software]::new()
+                $software.Name    = $name
+                $software.Id      = $id
+                $software.Version = $version
+                $software.Match   = $match
+                $software.Source  = $source
+                $software
             }
-            else {
-                $version = $line.Substring($versionStart, $sourceStart - $versionStart).TrimEnd()
-                $match = ""
-            }
-            $source = $line.Substring($sourceStart).TrimEnd()
-        
-            $software = [Software]::new()
-            $software.Name = ($name.TrimStart()).TrimEnd()
-            $software.Id = ($id.TrimStart()).TrimEnd()
-            $software.Version = ($version.TrimStart()).TrimEnd()
-            $software.Match = ($match.TrimStart()).TrimEnd()
-            $software.Source = ($source.TrimStart()).TrimEnd()
-            
-            $wingetList += $software
         }
     }
 
