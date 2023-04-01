@@ -14,8 +14,11 @@ function WinGetter {
     }
     
     $SearchResults = winget.exe search $SearchString
+    if ($SearchResults -contains "No package found matching input criteria.") {
+        return
+    }
+    
     $lines         = $SearchResults.Split([Environment]::NewLine)
-
     $headerLine = $lines | Where-Object { $_.StartsWith("Name") }
     $regex      = '[^\u0000-\u007F]+'
     $list       = $lines | Where-Object { $_ -notmatch $regex }
